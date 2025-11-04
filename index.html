@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sarcoma Molecular Subtyper (SMS)</title>
+    <!-- Load Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                },
+            },
+        }
+    </script>
+    <style>
+        /* Custom styles for loading spinner */
+        .loader {
+            border-top-color: #3498db;
+            -webkit-animation: spin 1s linear infinite;
+            animation: spin 1s linear infinite;
+        }
+        @-webkit-keyframes spin {
+            0% { -webkit-transform: rotate(0deg); }
+            100% { -webkit-transform: rotate(360deg); }
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans text-gray-800">
+
+    <!-- Main Container -->
+    <div class="container mx-auto max-w-6xl p-4 sm:p-8">
+
+        <!-- Header -->
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Sarcoma Molecular Subtyper (SMS)</h1>
+            <p class="text-lg text-gray-600">
+                Classify sarcoma samples into molecular subtypes based on gene expression data.
+            </p>
+            <p class="text-sm text-gray-500 mt-2">
+                This tool compares uploaded sample data to a reference centroid table using Spearman correlation.
+            </p>
+        </header>
+
+        <!-- Input Section -->
+        <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+            <h2 class="text-2xl font-semibold mb-4 text-gray-900">1. Upload Your Data</h2>
+            <p class="text-gray-600 mb-4">
+                Upload a CSV or TSV file. The file must have samples as rows and genes as columns.
+                The first row must be a header containing gene names (e.g., 'genename' or 'gene_symbol').
+                The first column must be the sample identifiers.
+            </p>
+
+            <!-- File Upload Area -->
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
+                <input type="file" id="fileInput" class="block w-full max-w-md mx-auto text-sm text-gray-500
+                    file:mr-4 file:py-2 file:px-4
+                    file:rounded-full file:border-0
+                    file:text-sm file:font-semibold
+                    file:bg-blue-50 file:text-blue-700
+                    hover:file:bg-blue-100 cursor-pointer"
+                    accept=".csv,.tsv,.txt">
+                <p id="fileName" class="text-sm text-gray-500 mt-4"></p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-center mt-6">
+                <button id="submitButton" class="flex-1 bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-blue-700 transition duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed">
+                    Run Analysis
+                </button>
+                <button id="exampleButton" class="flex-1 bg-gray-200 text-gray-800 font-semibold py-3 px-6 rounded-lg hover:bg-gray-300 transition duration-200 ease-in-out">
+                    Load Example Data
+                </button>
+                <button id="clearButton" class="flex-1 bg-red-500 text-white font-semibold py-3 px-6 rounded-lg hover:bg-red-600 transition duration-200 ease-in-out">
+                    Clear Results
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading and Error Messages -->
+        <div id="messageArea" class="mt-6 text-center">
+            <!-- Loader -->
+            <div id="loader" class="hidden mx-auto loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            <!-- Message Text -->
+            <p id="messageText" class="text-lg font-medium"></p>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsArea" class="hidden mt-10">
+            
+            <!-- 2. Download Classification Results -->
+            <div id="downloadSection" class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100 mb-8 text-center">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-900">2. Classification Results</h2>
+                <p class="text-gray-600 mb-4">Your analysis is complete. Download the classification results as a CSV file.</p>
+                <button id="downloadButton" class="bg-green-600 text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:bg-green-700 transition duration-200 ease-in-out">
+                    Download Results (CSV)
+                </button>
+            </div>
+
+            <!-- 3. Subtype Summary -->
+            <div class="bg-white p-6 rounded-2xl shadow-lg border border-gray-100">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-900">3. Subtype Summary</h2>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full max-w-md mx-auto divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtype</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Count</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Percentage (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="summaryTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Rows will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div> <!-- /resultsArea -->
+
+        <!-- Footer -->
+        <footer class="text-center mt-12 text-gray-500 text-sm">
+            <p>Sarcoma Molecular Subtyper (SMS) Tool. Created based on the TNBCtyper model.</p>
+        </footer>
+
+    </div> <!-- /container -->
+
+    <script type="module">
+        // --- DOM Elements ---
+        const fileInput = document.getElementById('fileInput');
+        const fileNameDisplay = document.getElementById('fileName');
+        const submitButton = document.getElementById('submitButton');
+        const exampleButton = document.getElementById('exampleButton');
+        const clearButton = document.getElementById('clearButton');
+        const messageArea = document.getElementById('messageArea');
+        const loader = document.getElementById('loader');
+        const messageText = document.getElementById('messageText');
+        const resultsArea = document.getElementById('resultsArea');
+        const downloadSection = document.getElementById('downloadSection');
+        const downloadButton = document.getElementById('downloadButton');
+        const summaryTableBody = document.getElementById('summaryTableBody');
+
+        // --- State ---
+        let referenceData = {
+            geneMap: new Map(), // gene_name -> [Subtype1_val, Subtype2_val, ...]
+            subtypeNames: [],   // ["Subtype_1", "Subtype_2", ...]
+        };
+        let userFileContent = null;
+        let classificationResultsCSV = null; // Store CSV content
+        
+        // --- Centroid File Path ---
+        const centroidFilePath = 'https://raw.githubusercontent.com/pingjie/sms/refs/heads/main/exp_centroids.txt';
+
+        // --- Example Data ---
+        // Uses gene names from the provided exp_centroids.txt file
+        const exampleData = `SampleID,PRKAR2B,E2F2,PAX7,ETV7,POLA2,MARCO,IBSP,ABCB1,FLNC,PTPRB
+Sample_A,4.0,3.5,2.0,4.0,5.0,4.0,3.5,3.0,9.5,6.0
+Sample_B,7.0,2.5,5.0,3.0,6.0,3.0,3.0,6.0,9.0,5.0
+Sample_C,3.0,3.0,4.0,3.5,4.5,5.0,9.0,2.5,6.5,8.0
+Sample_D,8.0,2.0,2.5,3.1,6.5,3.2,2.0,6.2,9.9,4.5
+Sample_E,3.5,3.6,2.1,4.2,4.8,5.5,4.0,2.8,9.0,6.5
+Sample_F,4.2,3.7,5.0,3.3,5.1,3.5,9.5,2.9,6.0,8.2
+`;
+
+        // --- Core Functions ---
+
+        /**
+         * Fetches and parses the reference centroid data on page load.
+         */
+        async function loadReferenceData() {
+            try {
+                const response = await fetch(centroidFilePath);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const text = await response.text();
+                
+                const lines = text.trim().split('\n');
+                if (lines.length < 2) {
+                    throw new Error("Reference file is empty or has no header.");
+                }
+
+                // Parse header
+                const header = lines[0].split('\t');
+                // Assumes format: geneid, genename, Subtype_1, Subtype_2, ...
+                referenceData.subtypeNames = header.slice(2);
+                
+                // Parse rows
+                for (let i = 1; i < lines.length; i++) {
+                    const columns = lines[i].split('\t');
+                    if (columns.length < header.length) continue;
+                    
+                    const geneId = columns[0].toUpperCase().split('.')[0]; // e.g., ENSG00000005249
+                    const geneName = columns[1].toUpperCase(); // e.g., PRKAR2B
+                    const values = columns.slice(2).map(parseFloat);
+                    
+                    if (!values.some(isNaN)) {
+                        // Map both ID and Name to the values
+                        if (geneId) referenceData.geneMap.set(geneId, values);
+                        if (geneName) referenceData.geneMap.set(geneName, values);
+                    }
+                }
+
+                if (referenceData.geneMap.size === 0) {
+                    throw new Error("No valid gene data parsed from the reference file.");
+                }
+                
+                console.log(`Reference data loaded successfully. ${referenceData.geneMap.size} genes and ${referenceData.subtypeNames.length} subtypes.`);
+                
+            } catch (error) {
+                console.error("Error loading reference data:", error);
+                showMessage(`Error: Could not load reference data '${centroidFilePath}'. ${error.message}`, 'error');
+                submitButton.disabled = true;
+                exampleButton.disabled = true;
+            }
+        }
+
+        /**
+         * Parses the user-uploaded file (CSV or TSV).
+         * @param {string} fileContent - The text content of the user's file.
+         * @returns {object} Parsed data: { samples: [], geneHeader: [], expression: Map }
+         */
+        function parseUserData(fileContent) {
+            const lines = fileContent.trim().split('\n');
+            if (lines.length < 2) {
+                throw new Error("User file must have at least one header row and one data row.");
+            }
+
+            // Detect delimiter (comma or tab)
+            const delimiter = lines[0].includes(',') ? ',' : '\t';
+            
+            // Parse header (genes)
+            const header = lines[0].trim().split(delimiter);
+            // NEW LOGIC: trim, remove quotes, split by '.', take first part, then uppercase.
+            const geneHeader = header.slice(1).map(g => g.trim().replace(/"/g, '').split('.')[0].toUpperCase());
+            
+            // Map gene names to their column index
+            const geneIndexMap = new Map();
+            geneHeader.forEach((gene, index) => {
+                geneIndexMap.set(gene, index + 1); // +1 to account for sample ID column
+            });
+
+            // Parse sample rows
+            const samples = [];
+            const expression = new Map(); // sampleID -> { geneName: value, ... }
+
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i].trim() === "") continue;
+                
+                const columns = lines[i].trim().split(delimiter);
+                const sampleID = columns[0].trim().replace(/"/g, '');
+                if (!sampleID) continue;
+
+                samples.push(sampleID);
+                const sampleData = {};
+                
+                for (const [gene, index] of geneIndexMap.entries()) {
+                    const value = parseFloat(columns[index]);
+                    if (!isNaN(value)) {
+                        sampleData[gene] = value; // gene is already processed (uppercase, stripped)
+                    }
+                }
+                expression.set(sampleID, sampleData);
+            }
+
+            if (samples.length === 0) {
+                throw new Error("No valid sample rows found in the user file.");
+            }
+
+            return { samples, geneHeader, expression };
+        }
+
+        /**
+         * Finds the common genes between user data and reference data.
+         * @param {string[]} userGenes - Array of gene names from user file.
+         * @returns {string[]} An array of matched gene names.
+         */
+        function findMatchedGenes(userGenes) {
+            const userGeneSet = new Set(userGenes); // Unique processed genes from user file
+            const referenceGeneKeys = new Set(referenceData.geneMap.keys()); // Unique keys from reference
+            
+            const matchedGenes = [];
+            for (const userGene of userGeneSet) {
+                if (referenceGeneKeys.has(userGene)) {
+                    matchedGenes.push(userGene);
+                }
+            }
+            return matchedGenes;
+        }
+
+        /**
+         * Calculates the Spearman rank correlation coefficient.
+         * @param {number[]} x - First array of numbers.
+         * @param {number[]} y - Second array of numbers.
+         * @returns {number} The Spearman correlation coefficient (ρ).
+         */
+        function spearmanCorrelation(x, y) {
+            if (x.length !== y.length) {
+                throw new Error("Vectors must be of the same length.");
+            }
+
+            // Helper to get ranks
+            function getRanks(v) {
+                const sorted = v.map((val, idx) => ({ val, idx }))
+                                .sort((a, b) => a.val - b.val);
+                
+                const ranks = new Array(v.length);
+                let i = 0;
+                while (i < sorted.length) {
+                    let j = i;
+                    // Find ties
+                    while (j < sorted.length - 1 && sorted[j].val === sorted[j + 1].val) {
+                        j++;
+                    }
+                    
+                    // Average rank for ties
+                    const avgRank = (i + j + 2) / 2; // Ranks are 1-based
+                    
+                    for (let k = i; k <= j; k++) {
+                        ranks[sorted[k].idx] = avgRank;
+                    }
+                    i = j + 1;
+                }
+                return ranks;
+            }
+
+            // Helper to calculate Pearson correlation
+            function pearsonCorrelation(x, y) {
+                const n = x.length;
+                let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+
+                for (let i = 0; i < n; i++) {
+                    sumX += x[i];
+                    sumY += y[i];
+                    sumXY += x[i] * y[i];
+                    sumX2 += x[i] * x[i];
+                    sumY2 += y[i] * y[i];
+                }
+
+                const numerator = (n * sumXY) - (sumX * sumY);
+                const denominator = Math.sqrt(((n * sumX2) - (sumX * sumX)) * ((n * sumY2) - (sumY * sumY)));
+
+                if (denominator === 0) return 0; // Avoid division by zero
+                return numerator / denominator;
+            }
+
+            const xRanks = getRanks(x);
+            const yRanks = getRanks(y);
+            
+            return pearsonCorrelation(xRanks, yRanks);
+        }
+
+        /**
+         * Main analysis function.
+         */
+        function runAnalysis(fileContent) {
+            if (!fileContent) {
+                showMessage('No file selected. Please upload a file or load the example.', 'error');
+                return;
+            }
+
+            setLoading(true, 'Parsing user data...');
+            clearResults();
+
+            setTimeout(() => { // Use timeout to allow UI to update
+                try {
+                    // 1. Parse User Data
+                    const userData = parseUserData(fileContent);
+                    setLoading(true, `Parsed ${userData.samples.length} samples. Matching genes...`);
+
+                    // 2. Match Genes
+                    const matchedGenes = findMatchedGenes(userData.geneHeader);
+                    if (matchedGenes.length === 0) {
+                        throw new Error("No matching genes found between your file and the reference data. Please check your gene names.");
+                    }
+                    setLoading(true, `Found ${matchedGenes.length} matching genes. Calculating correlations...`);
+
+                    // 3. Calculate Correlations
+                    const classificationResults = [];
+                    const subtypeCounts = new Array(referenceData.subtypeNames.length).fill(0);
+
+                    for (const sampleID of userData.samples) {
+                        const sampleExpression = userData.expression.get(sampleID);
+                        const sampleVector = matchedGenes.map(gene => sampleExpression[gene] || 0);
+                        
+                        let bestCorrelation = -Infinity;
+                        let bestSubtype = "N/A";
+                        let bestSubtypeIndex = -1;
+                        const subtypeCorrelations = [];
+
+                        for (let i = 0; i < referenceData.subtypeNames.length; i++) {
+                            const centroidVector = matchedGenes.map(gene => {
+                                const values = referenceData.geneMap.get(gene);
+                                return values ? values[i] : 0;
+                            });
+
+                            let correlation = 0;
+                            try {
+                                correlation = spearmanCorrelation(sampleVector, centroidVector);
+                            } catch (e) {
+                                console.warn(`Could not calculate correlation for ${sampleID}, Subtype ${i+1}: ${e.message}`);
+                            }
+                            
+                            subtypeCorrelations.push(correlation);
+
+                            if (correlation > bestCorrelation) {
+                                bestCorrelation = correlation;
+                                bestSubtype = referenceData.subtypeNames[i];
+                                bestSubtypeIndex = i;
+                            }
+                        }
+
+                        if (bestSubtypeIndex !== -1) {
+                            subtypeCounts[bestSubtypeIndex]++;
+                        }
+
+                        classificationResults.push({
+                            sampleID,
+                            bestSubtype,
+                            bestCorrelation,
+                            subtypeCorrelations
+                        });
+                    }
+
+                    // 4. Generate CSV and Render Summary Table
+                    classificationResultsCSV = generateCSV(classificationResults, referenceData.subtypeNames);
+                    renderSummaryTable(subtypeCounts, userData.samples.length);
+                    
+                    resultsArea.classList.remove('hidden');
+                    downloadSection.classList.remove('hidden');
+                    setLoading(false); // Hide loader
+
+                } catch (error) {
+                    console.error("Analysis failed:", error);
+                    showMessage(`Error: ${error.message}`, 'error');
+                    setLoading(false);
+                }
+            }, 50); // 50ms delay
+        }
+
+        /**
+         * Generates CSV content from classification results.
+         * @param {object[]} results - Array of result objects.
+         * @param {string[]} subtypeNames - Array of subtype names.
+         * @returns {string} CSV content as a string.
+         */
+        function generateCSV(results, subtypeNames) {
+            const header = [
+                "Sample ID",
+                "Predicted Subtype",
+                "Spearman Correlation (ρ)",
+                ...subtypeNames.map(name => `${name} (ρ)`)
+            ];
+            
+            let csvContent = header.join(",") + "\n";
+
+            for (const res of results) {
+                const row = [
+                    res.sampleID,
+                    res.bestSubtype,
+                    res.bestCorrelation.toFixed(4),
+                    ...res.subtypeCorrelations.map(corr => corr.toFixed(4))
+                ];
+                csvContent += row.join(",") + "\n";
+            }
+            
+            return csvContent;
+        }
+
+        /**
+         * Triggers the download of the generated CSV file.
+         */
+        function downloadCSV() {
+            if (!classificationResultsCSV) {
+                showMessage('No CSV data to download.', 'error');
+                return;
+            }
+
+            const blob = new Blob([classificationResultsCSV], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            
+            link.setAttribute('href', url);
+            link.setAttribute('download', 'sms_classification_results.csv');
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        /**
+         * Renders the subtype summary table.
+         * @param {number[]} counts - Array of counts for each subtype.
+         * @param {number} totalSamples - Total number of samples analyzed.
+         */
+        function renderSummaryTable(counts, totalSamples) {
+            summaryTableBody.innerHTML = ''; // Clear previous results
+            for (let i = 0; i < referenceData.subtypeNames.length; i++) {
+                const subtypeName = referenceData.subtypeNames[i];
+                const count = counts[i];
+                const percentage = totalSamples > 0 ? (count / totalSamples) * 100 : 0;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${subtypeName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${count}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${percentage.toFixed(1)}%</td>
+                `;
+                summaryTableBody.appendChild(row);
+            }
+        }
+
+        /**
+         * Shows a message (info, error) or loading state.
+         * @param {string} text - The message to display.
+         * @param {string} type - 'info', 'error', or 'loading'.
+         */
+        function showMessage(text, type = 'info') {
+            messageText.textContent = text;
+            messageText.classList.remove('text-red-600', 'text-blue-600');
+
+            if (type === 'error') {
+                messageText.classList.add('text-red-600');
+            } else {
+                messageText.classList.add('text-blue-600');
+            }
+        }
+
+        /**
+         * Sets the loading state.
+         * @param {boolean} isLoading - True to show loader, false to hide.
+         * @param {string} [message] - Optional message to display.
+         */
+        function setLoading(isLoading, message = '') {
+            if (isLoading) {
+                loader.classList.remove('hidden');
+                messageArea.classList.remove('hidden');
+                showMessage(message, 'loading');
+                submitButton.disabled = true;
+                exampleButton.disabled = true;
+            } else {
+                loader.classList.add('hidden');
+                messageText.textContent = '';
+                messageArea.classList.add('hidden');
+                submitButton.disabled = false;
+                exampleButton.disabled = false;
+            }
+        }
+
+        /**
+         * Clears all inputs and results.
+         */
+        function clearAll() {
+            userFileContent = null;
+            classificationResultsCSV = null;
+            fileInput.value = ''; // Clear file input
+            fileNameDisplay.textContent = '';
+            clearResults();
+            setLoading(false);
+            messageText.textContent = '';
+            messageArea.classList.add('hidden');
+        }
+
+        /**
+         * Clears only the results area.
+         */
+        function clearResults() {
+            resultsArea.classList.add('hidden');
+            downloadSection.classList.add('hidden');
+            summaryTableBody.innerHTML = '';
+            classificationResultsCSV = null;
+        }
+
+        // --- Event Listeners ---
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                fileNameDisplay.textContent = `Selected file: ${file.name}`;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    userFileContent = e.target.result;
+                    clearResults();
+                };
+                reader.readAsText(file);
+            } else {
+                userFileContent = null;
+                fileNameDisplay.textContent = '';
+            }
+        });
+
+        submitButton.addEventListener('click', () => {
+            runAnalysis(userFileContent);
+        });
+
+        exampleButton.addEventListener('click', () => {
+            clearAll();
+            userFileContent = exampleData;
+            fileNameDisplay.textContent = 'Loaded example data.';
+            showMessage('Example data loaded. Click "Run Analysis".', 'info');
+            messageArea.classList.remove('hidden');
+        });
+
+        clearButton.addEventListener('click', clearAll);
+
+        downloadButton.addEventListener('click', downloadCSV);
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setLoading(true, 'Loading reference data...');
+            loadReferenceData().then(() => {
+                setLoading(false); // Hide loader once data is loaded
+            });
+        });
+
+    </script>
+</body>
+</html>
+
